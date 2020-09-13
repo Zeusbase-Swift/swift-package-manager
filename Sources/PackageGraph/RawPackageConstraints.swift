@@ -9,27 +9,50 @@
 */
 
 import PackageModel
-import PackageDescription4
 import SourceControl
 
-extension PackageDescription4.Package.Dependency {
+extension PackageDependencyDescription {
     /// Create the package reference object for the dependency.
-    public func createPackageRef() -> PackageReference {
+    public func createPackageRef(config: SwiftPMConfig) -> PackageReference {
+        let effectiveURL = config.mirroredURL(forURL: self.url)
         return PackageReference(
-            identity: PackageReference.computeIdentity(packageURL: url),
-            path: url
+            identity: PackageReference.computeIdentity(packageURL: effectiveURL),
+            path: effectiveURL,
+            kind: requirement == .localPackage ? .local : .remote
         )
     }
 }
 
-extension Manifest.RawPackage {
+extension Manifest {
 
     /// Constructs constraints of the dependencies in the raw package.
-    public func dependencyConstraints() -> [RepositoryPackageConstraint] {
-        return dependencies.map({
+    public func dependencyConstraints(productFilter: ProductFilter, config: SwiftPMConfig) -> [RepositoryPackageConstraint] {
+        return dependenciesRequired(for: productFilter).map({
             return RepositoryPackageConstraint(
-                container: $0.createPackageRef(),
-                requirement: $0.requirement.toConstraintRequirement())
+                container: $0.declaration.createPackageRef(config: config),
+                requirement: $0.declaration.requirement.toConstraintRequirement(),
+                products: $0.productFilter)
         })
+    }
+}
+
+extension RepositoryPackageConstraint {
+
+    internal func nodes() -> [DependencyResolutionNode] {
+        switch products {
+        case .everything:
+            return [.root(package: identifier)]
+        case .specific:
+            switch products {
+            case .everything:
+                fatalError("Attempted to enumerate a root package’s product filter; root packages have no filter.")
+            case .specific(let set):
+                if set.isEmpty { // Pointing at the package without a particular product.
+                    return [.empty(package: identifier)]
+                } else {
+                    return set.sorted().map { .product($0, package: identifier) }
+                }
+            }
+        }
     }
 }

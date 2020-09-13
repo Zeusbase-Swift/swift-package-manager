@@ -8,13 +8,14 @@
  See http://swift.org/CONTRIBUTORS.txt for Swift project authors
 */
 
-import Basic
+import TSCBasic
+import TSCUtility
 
 /// The type of product.
-public enum ProductType: CustomStringConvertible {
+public enum ProductType: CustomStringConvertible, Equatable {
 
     /// The type of library.
-    public enum LibraryType {
+    public enum LibraryType: String, Codable {
 
         /// Static library.
         case `static`
@@ -54,7 +55,7 @@ public enum ProductType: CustomStringConvertible {
     }
 }
 
-public class Product {
+public class Product: Codable {
 
     /// The name of the product.
     public let name: String
@@ -66,10 +67,14 @@ public class Product {
     ///
     /// This is never empty, and is only the targets which are required to be in
     /// the product, but not necessarily their transitive dependencies.
-    public let targets: [Target]
+    @PolymorphicCodableArray
+    public var targets: [Target]
 
     /// The path to linux main file.
     public let linuxMain: AbsolutePath?
+
+    /// The suffix for REPL product name.
+    public static let replProductSuffix: String = "__REPL"
 
     public init(name: String, type: ProductType, targets: [Target], linuxMain: AbsolutePath? = nil) {
         precondition(!targets.isEmpty)
@@ -82,7 +87,7 @@ public class Product {
         }
         self.name = name
         self.type = type
-        self.targets = targets
+        self._targets = .init(wrappedValue: targets)
         self.linuxMain = linuxMain 
     }
 }
@@ -90,24 +95,5 @@ public class Product {
 extension Product: CustomStringConvertible {
     public var description: String {
         return "<Product: \(name)>"
-    }
-}
-
-extension ProductType: Equatable {
-    public static func == (lhs: ProductType, rhs: ProductType) -> Bool {
-        switch (lhs, rhs) {
-        case (.executable, .executable):
-            return true
-        case (.executable, _):
-            return false
-        case (.test, .test):
-            return true
-        case (.test, _):
-            return false
-        case (.library(let lhsType), .library(let rhsType)):
-            return lhsType == rhsType
-        case (.library, _):
-            return false
-        }
     }
 }
